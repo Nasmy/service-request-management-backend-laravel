@@ -1,0 +1,92 @@
+image: atlassian/default-image:latest
+
+pipelines:
+  definitions:
+    steps:
+      # - step: &php-build
+      #     name: PHP Build
+      #     image: php:7.4-fpm
+      #     caches:
+      #       - composer
+      #     script:
+      #       - ls -al
+      #       - apt-get update && apt-get install -qy unzip git curl libmcrypt-dev
+      #       - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+      #       - composer --version
+      #       - composer install --no-ansi --no-dev --no-interaction --no-plugins --no-progress --optimize-autoloader --prefer-dist --ignore-platform-reqs
+      #     artifacts:
+      #       - vendor/**
+      - step: &deploy-dev
+          name: Deploy dev
+          deployment: CitizensBox-Dev
+          script:
+            - pipe: atlassian/scp-deploy:0.3.3
+              variables:
+                USER: $SSH_USER
+                SERVER: $WEB_HOST
+                REMOTE_PATH: "${DEPLOY_PATH}"
+                LOCAL_PATH: "${BITBUCKET_CLONE_DIR}/*"
+            - pipe: atlassian/ssh-run:0.3.0
+              variables:
+                SSH_USER: $SSH_USER
+                SERVER: $WEB_HOST
+                MODE: "script"
+                COMMAND: "post-deploy.sh"
+                ENV_VARS: >-
+                  DEPLOY_PATH=${DEPLOY_PATH}
+                  APP_ENV=${APP_ENV}
+      - step: &deploy-staging
+          name: Deploy staging
+          deployment: CitizensBox-Staging
+          script:
+            - pipe: atlassian/scp-deploy:0.3.3
+              variables:
+                USER: $SSH_USER
+                SERVER: $WEB_HOST
+                REMOTE_PATH: "${DEPLOY_PATH}"
+                LOCAL_PATH: "${BITBUCKET_CLONE_DIR}/*"
+            - pipe: atlassian/ssh-run:0.3.0
+              variables:
+                SSH_USER: $SSH_USER
+                SERVER: $WEB_HOST
+                MODE: "script"
+                COMMAND: "post-deploy.sh"
+                ENV_VARS: >-
+                  DEPLOY_PATH=${DEPLOY_PATH}
+                  APP_ENV=${APP_ENV}
+      - step: &deploy-production
+          name: Deploy production
+          deployment: CitizensBox-Production
+          script:
+            - pipe: atlassian/scp-deploy:0.3.3
+              variables:
+                USER: $SSH_USER
+                SERVER: $WEB_HOST
+                REMOTE_PATH: "${DEPLOY_PATH}"
+                LOCAL_PATH: "${BITBUCKET_CLONE_DIR}/*"
+            - pipe: atlassian/ssh-run:0.3.0
+              variables:
+                SSH_USER: $SSH_USER
+                SERVER: $WEB_HOST
+                MODE: "script"
+                COMMAND: "post-deploy.sh"
+                ENV_VARS: >-
+                  DEPLOY_PATH=${DEPLOY_PATH}
+                  APP_ENV=${APP_ENV}
+      # - step: &deploy-with-bash
+      #     script:
+      #       - cat ./deploy.sh | ssh -v $SSH_USER@$WEB_HOST
+      #       - echo "Deploy step finished"
+  default:
+    - step:
+        script:
+          - echo "Default action for other branches/tags etc. goes here."
+  branches:
+    release/development:
+      - step: *deploy-dev
+
+    release/staging:
+      - step: *deploy-staging
+
+    release/production:
+      - step: *deploy-production
